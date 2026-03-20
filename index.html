@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2026 전남 아이모두 플랫폼 스마트 FAQ</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Chosen Palette: Warm Neutrals & Teal Accent (bg-stone-50, text-stone-800, accent-teal-600) -->
+    <!-- Application Structure Plan: [Dashboard Layout] 
+         1. Hero Section: Introduces the purpose and provides a global real-time search bar.
+         2. Overview Section (Left/Top): A Donut chart showing the distribution of inquiry categories. This gives administrators/teachers a quick snapshot of common pain points.
+         3. Interactive FAQ Section (Right/Bottom): Category filter pills and an accordion-style list of questions. This allows for deep-dives into specific topics without overwhelming the user with text.
+         This structure was chosen to transform a flat document into an exploratory tool where users can either search directly for their issue or browse by the most common themes. 
+    -->
+    <!-- Visualization & Content Choices: 
+         - Report Info: FAQ Categories & Volume -> Goal: Inform/Organize -> Viz: Donut Chart -> Interaction: Hover tooltips, click to filter (via JS) -> Justification: Shows at a glance which areas (e.g., Accounts, EdTech) have the most issues. -> Library: Chart.js (NO SVG).
+         - Report Info: Q&A Text -> Goal: Organize/Inform -> Viz: Accordion List -> Interaction: Click to expand/collapse, Live Search filter -> Justification: Keeps the UI clean while providing full text access on demand. -> Library: Vanilla JS + Tailwind.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+    <style>
+        /* Custom Styles & Chart Container Enforcement */
+        body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif; }
+        
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 350px;
+        }
+
+        /* Accordion transition classes */
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out, padding 0.3s ease;
+        }
+        .accordion-content.open {
+            max-height: 500px; /* arbitrary large max-height for transition */
+        }
+        .rotate-icon {
+            transform: rotate(180deg);
+            transition: transform 0.3s ease;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f5f5f4; }
+        ::-webkit-scrollbar-thumb { background: #d6d3d1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a8a29e; }
+    </style>
+</head>
+<body class="bg-stone-50 text-stone-800 antialiased min-h-screen">
+
+    <!-- Header Section -->
+    <header class="bg-teal-600 text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+            <h1 class="text-3xl md:text-4xl font-bold mb-4">2026 전남 아이모두 플랫폼 FAQ</h1>
+            <p class="text-teal-100 text-lg mb-8 max-w-2xl">
+                2026년 3월 학기 초 발생한 주요 문의 사항과 답변을 모았습니다. 시스템 업데이트 및 전라남도교육청 정책에 따라 세부 내용은 변경될 수 있으니 정기적으로 확인해 주시기 바랍니다.
+            </p>
+            
+            <!-- Global Search -->
+            <div class="relative max-w-2xl">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-4 text-stone-400 text-xl">&#128269;</span>
+                <input type="text" id="searchInput" placeholder="궁금한 내용을 검색해보세요 (예: 비밀번호, 나이스, 캔바...)" 
+                    class="w-full pl-12 pr-4 py-4 rounded-xl text-stone-800 focus:outline-none focus:ring-4 focus:ring-teal-300 shadow-lg text-lg">
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Layout -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 grid grid-cols-1 lg:grid-cols-3 gap-10">
+        
+        <!-- Left Sidebar: Overview & Stats -->
+        <aside class="lg:col-span-1 space-y-8">
+            <!-- Contextual Intro -->
+            <div class="bg-white rounded-2xl shadow-sm p-6 border border-stone-100">
+                <h2 class="text-xl font-bold text-stone-800 mb-2">📊 문의 동향 분석</h2>
+                <p class="text-stone-600 text-sm mb-6 leading-relaxed">
+                    단톡방에서 수집된 현장의 주요 문의 카테고리 분포입니다. 
+                    현재 선생님들께서 어떤 기능(계정 관리, 학사 설정, 에듀테크 등)에서 가장 많은 궁금증을 가지고 계신지 한눈에 파악할 수 있습니다. 
+                    <strong>차트의 조각을 클릭하면 해당 카테고리의 질문만 필터링됩니다.</strong>
+                </p>
+                <!-- Chart Container (Strictly styled as per requirements) -->
+                <div class="chart-container">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Tip Card -->
+            <div class="bg-teal-50 border border-teal-100 rounded-2xl p-6">
+                <h3 class="font-bold text-teal-800 mb-2">&#128161; 이용 팁</h3>
+                <p class="text-teal-700 text-sm leading-relaxed">
+                    위 내용 외에 더 구체적인 화면 스크린샷이 포함된 매뉴얼은 아이모두 포털 접속 후 왼쪽 하단의 <strong>[헬프센터]</strong> 메뉴에서 다운로드하실 수 있습니다.
+                </p>
+            </div>
+        </aside>
+
+        <!-- Right Content: Interactive FAQ List -->
+        <section class="lg:col-span-2">
+            <div class="bg-white rounded-2xl shadow-sm p-6 md:p-8 border border-stone-100 min-h-[600px]">
+                <h2 class="text-2xl font-bold text-stone-800 mb-4">자주 묻는 질문</h2>
+                <p class="text-stone-500 text-sm mb-6">
+                    원하는 카테고리를 선택하거나, 질문을 클릭하여 상세한 답변을 확인하세요.
+                </p>
+
+                <!-- Category Filters -->
+                <div class="flex flex-wrap gap-2 mb-8" id="filterContainer">
+                    <!-- Buttons generated by JS -->
+                </div>
+
+                <!-- FAQ List -->
+                <div id="faqList" class="space-y-4">
+                    <!-- FAQ Items generated by JS -->
+                </div>
+                
+                <!-- No Results State -->
+                <div id="noResults" class="hidden text-center py-12">
+                    <div class="text-4xl mb-4">&#128549;</div>
+                    <h3 class="text-lg font-bold text-stone-700">검색 결과가 없습니다</h3>
+                    <p class="text-stone-500 mt-2">다른 검색어를 입력하거나 필터를 해제해보세요.</p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        // --- 1. Data Storage ---
+        const faqData = [
+            { id: 'q1', category: '계정 및 로그인', q: '학교 관리자 계정을 분실했거나 잠겼습니다. 어떻게 해야 하나요?', a: '보안을 위해 로그인 시도를 5회 연속 실패할 경우 해당 계정은 자동으로 잠금 처리됩니다. 이 경우 학교 자체적으로는 해제가 불가능하므로, <strong>전남창의융합교육원(061-330-2148)</strong>으로 전화 주시면 담당자가 본인 확인 후 즉시 계정 정보를 안내해 드리거나 비밀번호를 초기화해 드립니다.' },
+            { id: 'q2', category: '계정 및 로그인', q: '행정실 직원이나 교육공무직원(교무행정사 등)도 가입할 수 있나요?', a: '네, 가입이 가능합니다. 다만 회원가입 시스템상 \'교사\' 그룹으로 먼저 선택하여 진행하셔야 합니다. 이후 소속 학교를 찾는 단계에서 학교명 대신 <strong>\'교육행정직원\'</strong> 또는 <strong>\'교육공무직원\'</strong>을 검색어로 입력하여 자신의 직종에 맞는 소속을 선택해 주세요. 해당 신청 건은 창의융합교육원에서 직접 확인하여 승인을 진행하고 있습니다.' },
+            { id: 'q3', category: '계정 및 로그인', q: '회원가입 과정에서 공동인증서 로딩이 멈추거나 본인인증 오류가 발생합니다.', a: '이 문제는 주로 브라우저의 보안 설정이나 이전 접속 기록(캐시) 충돌로 인해 발생합니다. 사용 중인 브라우저를 완전히 종료한 후 <strong>크롬(Chrome)이나 엣지(Edge)</strong>의 최신 버전으로 다시 시도해 보시길 권장합니다. 만약 지속적으로 오류가 발생한다면 통합인증센터(1877-1052)를 통해 본인 인증 시스템상의 문제를 확인해야 하지만, 현장에서는 브라우저 변경만으로도 대부분 해결되고 있습니다.' },
+            { id: 'q4', category: '계정 및 로그인', q: '소속을 잘못 선택하여 학교 관리자로부터 가입 승인이 반려되었습니다. 처음부터 다시 가입해야 하나요?', a: '아니요, 동일한 아이디로 다시 회원가입 절차를 밟으실 필요는 없습니다. 아이모두 포털에 기존 아이디로 로그인하시면(업무 기능은 제한됨) 상단의 <strong>[마이페이지 > 내정보관리 > 학교관리]</strong> 메뉴에 접속하실 수 있습니다. 이곳에서 \'학교추가신청\' 버튼을 눌러 올바른 소속 학교를 검색하여 다시 신청하시면, 학교 관리자에게 승인 요청이 다시 전달됩니다.' },
+            
+            { id: 'q5', category: '학교 관리자/학사 설정', q: '나이스(NEIS) 파일을 업로드했는데 검증 실패가 뜨거나 마법사가 작동하지 않습니다.', a: '현재 제공되는 \'학교세팅 마법사\'는 초등학교의 학사 구조에 최적화되어 있어, 중·고등학교의 경우 수동 설정이 필요한 부분이 있습니다. 나이스에서 내려받은 파일의 양식이 변경되었거나, 과목코드 등 필수 입력값이 누락된 경우 검증 실패가 발생할 수 있습니다. 헬프센터의 <strong>[중등용 수동 설정 매뉴얼]</strong>을 참고하시어 단계별로 설정을 진행해 주시기 바랍니다.' },
+            { id: 'q6', category: '학교 관리자/학사 설정', q: '학사일정이나 과목을 등록했는데도 교사가 클래스를 만들 때 과목이 검색되지 않습니다.', a: '교사의 클래스 개설 화면에서 과목이 보이려면 학교 관리자 페이지에서 <strong>[학기 설정 -> 학사일정 등록 -> 과목 등록 -> 담임/담당교사 편성]</strong>의 4단계 선행 작업이 모두 완료되어야 합니다. 특히 특정 과목(예: 과학)이 목록에서 누락되지 않았는지, 그리고 현재 학기가 활성화되어 있는지 관리자 페이지에서 다시 한번 확인해 주시기 바랍니다.' },
+            { id: 'q7', category: '학교 관리자/학사 설정', q: '학급 목록 메뉴에서 학생 수가 0명으로 표시되는데 무엇이 문제인가요?', a: '학생 계정을 생성한 것만으로는 학생 수가 반영되지 않습니다. SIS(학사정보시스템) 내에서 <strong>\'반 배정\'</strong> 작업을 수행해야 합니다. 등록된 학생들을 각각의 학년과 반으로 편성하는 과정을 완료해야만 학급 목록에서 실제 학생 인원수가 정상적으로 집계되어 나타납니다.' },
+            
+            { id: 'q8', category: '학생 계정 관리', q: '학생 아이디를 학교에서 원하는 규칙(예: 학번+이름)으로 생성하거나 수정할 수 있나요?', a: '현재 시스템의 일괄 등록 기능을 이용할 경우, 아이디는 중복 방지를 위해 시스템에서 자동으로 생성되는 방식을 취하고 있습니다. 관리자 페이지에서 개별 학생의 정보를 수정하여 아이디를 바꾸는 것은 가능하지만, 학생 수가 많을 경우 현장의 업무 부담이 크다는 점을 인지하고 있습니다. 이를 해결하기 위해 향후 아이디 생성 규칙을 선택할 수 있는 기능을 개발 검토 중에 있습니다.' },
+            { id: 'q9', category: '학생 계정 관리', q: '학생이 다른 학교로 전학을 가거나 졸업하게 되면 계정을 삭제해야 하나요?', a: '학교 관리자에게는 학생 계정을 영구 삭제할 수 있는 권한이 부여되지 않았습니다. <strong>별도의 삭제 조치 없이 그대로 두시면 됩니다.</strong> 전남 지역 내에서 진학하는 경우 계정을 계속 사용할 수 있도록 설계되었으며, 졸업 후에도 본인의 학습 이력을 확인할 수 있도록 계정을 유지하는 방향으로 운영할 계획입니다.' },
+            { id: 'q10', category: '학생 계정 관리', q: '학생이 비밀번호를 잊어버려 계정이 잠긴 경우 어떻게 풀어주나요?', a: '학생이 비밀번호를 5회 잘못 입력하여 잠긴 경우, 담임 선생님이나 학교 관리자가 해결해 줄 수 있습니다. 학교 관리자 계정으로 접속하여 <strong>[학생 관리 > 학생 목록]</strong>에서 해당 학생을 검색한 후, 비밀번호 초기화 또는 변경 기능을 사용해 새로운 비밀번호를 설정해 주시면 즉시 잠금이 해제되고 로그인이 가능해집니다.' },
+            { id: 'q11', category: '학생 계정 관리', q: '학생 가입 시 개인정보동의서를 반드시 종이로 받아야 하나요?', a: '네, 개인정보 보호법에 따라 플랫폼 이용을 위한 동의는 필수적입니다. 학교에서는 공문으로 안내된 양식을 활용하여 동의서를 수거하고 이를 <strong>학교에서 자체 보관</strong>하셔야 합니다. 교육청이나 창의융합교육원으로 별도 제출하실 필요는 없습니다. 또한 아이모두 가입은 학교 전체의 의무 사항이 아니므로, 활용을 희망하는 학급이나 학생을 대상으로 진행하셔도 무방합니다.' },
+            
+            { id: 'q12', category: '에듀테크 도구', q: '이전에 전남 메타스쿨(미리캔버스)에서 만든 자료들을 아이모두 계정으로 옮길 수 있나요?', a: '네, 가능합니다. 최근 발송된 <strong>[미리캔버스 데이터 이관 신청]</strong> 관련 공문을 확인해 주세요. 기존 메타스쿨 계정과 새 아이모두 계정 정보를 기한 내에 제출하시면 일괄 이관 작업을 진행할 예정입니다. 개별적으로 옮기실 경우에는 미리캔버스의 \'디자인 공유\' 기능을 통해 웹 게시 후, 새 계정에서 복제하는 방식을 활용하실 수도 있습니다.' },
+            { id: 'q13', category: '에듀테크 도구', q: '캔바(Canva)를 사용하려는데 조직 외부 계정이라며 로그인이 안 되거나 가입이 거부됩니다.', a: '이는 기존에 사용하던 개인 이메일이나 e.jne.go.kr 계정이 브라우저에 로그인되어 있어 발생하는 충돌 현상입니다. 캔바는 보안을 위해 다중 계정 접속 시 조직 가입을 제한할 수 있습니다. 브라우저의 시크릿 모드를 활용하거나 기존 구글 계정을 로그아웃한 후, 오직 아이모두 계정(@ai.jne.kr)으로만 접속하여 다시 시도해 주시기 바랍니다.' },
+            { id: 'q14', category: '에듀테크 도구', q: '구글 클래스룸 등 구글 도구에 접속할 때 인증 요청 화면이 무한 반복됩니다.', a: '현재 일부 학생 계정에서 구글 워크스페이스 권한 인증 과정 중 페이지가 반복되는 현상이 보고되었습니다. 이는 플랫폼 간 연동 과정의 일시적인 버그로 파악되어 기술팀에서 긴급 조치 중입니다. 불편하시겠지만 브라우저의 쿠키와 기록을 모두 삭제한 후 다시 시도해 보시고, 해결되지 않을 경우 상황을 공유해 주시면 우선적으로 조치하겠습니다.' },
+            { id: 'q15', category: '에듀테크 도구', q: '기존 구글(@e.jne.go.kr)이나 MS 계정은 언제까지 사용할 수 있나요?', a: '현재 정확한 서비스 종료일은 확정되지 않았으나, 전라남도교육청의 정책에 따라 기술 지원과 EDU+ 라이선스 혜택이 점진적으로 종료될 예정입니다. 따라서 중요한 수업 자료나 데이터는 미리 아이모두 구글 드라이브나 개인 저장소로 백업하시기를 강력히 권장합니다. 참고로 MS(O365) 계정은 현재 아이모두 플랫폼의 직접적인 기술 지원 대상에 포함되어 있지 않습니다.' },
+            
+            { id: 'q16', category: '인프라 및 기기', q: '학교 크롬북이나 웨일북에서 아이모두 계정으로 로그인하려고 하면 \'권한이 없다\'고 나옵니다.', a: '학교 기기 관리 설정(MDM)에서 허용 도메인이 기존의 m.jne.go.kr 등으로 한정되어 있기 때문입니다. 학교 기기 관리자께서 관리 콘솔에 접속하여 <strong>ai.jne.kr 도메인을 화이트리스트(허용 목록)에 추가</strong>해 주셔야 해당 기기에서 새로운 계정으로 로그인이 가능해집니다.' },
+            { id: 'q17', category: '인프라 및 기기', q: '구글 플레이스토어에서 수업에 필요한 앱을 다운로드받고 싶은데 보이지 않습니다.', a: '학생들의 안전한 기기 사용을 위해 플레이스토어는 관리자가 허용한 앱만 노출되는 \'승인 모드\'로 운영됩니다. 똑똑수학탐험대, 미로(Miro), 패들렛 등 선생님들께서 요청하신 주요 교육용 앱들은 현재 도교육청 차원에서 일괄 승인 작업을 진행하고 있습니다. 승인이 완료되면 기기에서 자동으로 업데이트되어 나타나게 됩니다.' }
+        ];
+
+        // --- 2. State Management ---
+        let currentState = {
+            activeCategory: '전체보기',
+            searchKeyword: '',
+            openAccordionId: null
+        };
+
+        const categories = ['전체보기', ...new Set(faqData.map(item => item.category))];
+
+        // --- 3. DOM Elements ---
+        const filterContainer = document.getElementById('filterContainer');
+        const faqListContainer = document.getElementById('faqList');
+        const searchInput = document.getElementById('searchInput');
+        const noResults = document.getElementById('noResults');
+        let chartInstance = null;
+
+        // --- 4. Initialization & Render Logic ---
+        function init() {
+            renderFilters();
+            renderFaqs();
+            initChart();
+            setupEventListeners();
+        }
+
+        function renderFilters() {
+            filterContainer.innerHTML = '';
+            categories.forEach(cat => {
+                const btn = document.createElement('button');
+                const isActive = currentState.activeCategory === cat;
+                
+                btn.className = `px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200 border ${
+                    isActive 
+                    ? 'bg-teal-600 text-white border-teal-600 shadow-sm' 
+                    : 'bg-white text-stone-600 border-stone-200 hover:bg-stone-50'
+                }`;
+                btn.textContent = cat;
+                btn.onclick = () => {
+                    currentState.activeCategory = cat;
+                    currentState.searchKeyword = ''; // Reset search on category change
+                    searchInput.value = '';
+                    renderFilters(); // Re-render to update active styling
+                    renderFaqs();
+                };
+                filterContainer.appendChild(btn);
+            });
+        }
+
+        function renderFaqs() {
+            faqListContainer.innerHTML = '';
+            
+            const filteredData = faqData.filter(item => {
+                const matchCategory = currentState.activeCategory === '전체보기' || item.category === currentState.activeCategory;
+                const searchLower = currentState.searchKeyword.toLowerCase();
+                const matchSearch = item.q.toLowerCase().includes(searchLower) || item.a.toLowerCase().includes(searchLower);
+                return matchCategory && matchSearch;
+            });
+
+            if (filteredData.length === 0) {
+                noResults.classList.remove('hidden');
+            } else {
+                noResults.classList.add('hidden');
+                filteredData.forEach(item => {
+                    const isOpen = currentState.openAccordionId === item.id;
+                    const faqEl = document.createElement('div');
+                    faqEl.className = 'border border-stone-200 rounded-xl overflow-hidden bg-white';
+                    
+                    // Question Header
+                    const header = document.createElement('button');
+                    header.className = 'w-full text-left px-6 py-4 flex justify-between items-center focus:outline-none focus:bg-stone-50 hover:bg-stone-50 transition-colors';
+                    header.onclick = () => toggleAccordion(item.id);
+                    
+                    header.innerHTML = `
+                        <div class="pr-4">
+                            <span class="inline-block px-2 py-1 text-xs font-semibold text-teal-700 bg-teal-50 rounded mb-2 border border-teal-100">${item.category}</span>
+                            <h3 class="text-base font-bold text-stone-800 leading-snug">Q. ${item.q}</h3>
+                        </div>
+                        <span class="text-stone-400 text-xl transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}">&#9660;</span>
+                    `;
+
+                    // Answer Body
+                    const body = document.createElement('div');
+                    body.className = `accordion-content bg-stone-50 ${isOpen ? 'open' : ''}`;
+                    body.innerHTML = `
+                        <div class="px-6 py-5 border-t border-stone-200">
+                            <div class="flex items-start">
+                                <span class="text-xl font-bold text-teal-600 mr-3 mt-0.5">A.</span>
+                                <p class="text-stone-700 leading-relaxed text-sm md:text-base">${item.a}</p>
+                            </div>
+                        </div>
+                    `;
+
+                    faqEl.appendChild(header);
+                    faqEl.appendChild(body);
+                    faqListContainer.appendChild(faqEl);
+                });
+            }
+        }
+
+        function toggleAccordion(id) {
+            // Toggle logic: close currently open if different, toggle selected
+            currentState.openAccordionId = currentState.openAccordionId === id ? null : id;
+            renderFaqs(); // Re-render handles the CSS class applications smoothly
+        }
+
+        function setupEventListeners() {
+            searchInput.addEventListener('input', (e) => {
+                currentState.searchKeyword = e.target.value;
+                // If searching, effectively search across all categories
+                if(currentState.searchKeyword !== '') {
+                    currentState.activeCategory = '전체보기';
+                    renderFilters();
+                }
+                renderFaqs();
+            });
+        }
+
+        // --- 5. Chart.js Implementation ---
+        function initChart() {
+            const ctx = document.getElementById('categoryChart').getContext('2d');
+            
+            // Calculate category counts
+            const counts = {};
+            faqData.forEach(item => {
+                counts[item.category] = (counts[item.category] || 0) + 1;
+            });
+
+            const labels = Object.keys(counts);
+            const data = Object.values(counts);
+
+            // Teal & Warm monochromatic palette
+            const backgroundColors = [
+                '#0d9488', // teal-600
+                '#14b8a6', // teal-500
+                '#2dd4bf', // teal-400
+                '#5eead4', // teal-300
+                '#a7f3d0'  // emerald-200
+            ];
+
+            chartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: backgroundColors,
+                        borderWidth: 2,
+                        borderColor: '#ffffff',
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                font: { family: "'Pretendard', sans-serif", size: 12 },
+                                color: '#44403c', // stone-700
+                                usePointStyle: true,
+                                padding: 20
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(28, 25, 23, 0.9)', // stone-900
+                            padding: 12,
+                            titleFont: { family: "'Pretendard', sans-serif", size: 13 },
+                            bodyFont: { family: "'Pretendard', sans-serif", size: 14 },
+                            callbacks: {
+                                label: function(context) {
+                                    return ` ${context.label}: ${context.raw}건의 질문`;
+                                }
+                            }
+                        }
+                    },
+                    onClick: (event, elements) => {
+                        // Interactive filtering from chart
+                        if (elements.length > 0) {
+                            const index = elements[0].index;
+                            const clickedCategory = labels[index];
+                            
+                            // Update state and UI
+                            currentState.activeCategory = clickedCategory;
+                            currentState.searchKeyword = '';
+                            searchInput.value = '';
+                            
+                            // Scroll to FAQ section smoothly
+                            document.getElementById('faqList').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            
+                            renderFilters();
+                            renderFaqs();
+                        }
+                    }
+                }
+            });
+        }
+
+        // Boot up
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
